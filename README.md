@@ -21,7 +21,7 @@
         philosophers[5] X F => mutexes[5]
         
         F(i):
-          philosophers[i].lower = mutexes[i-1]
+          philosophers[i].lower = min(i-1, i)
           philosophers[i].higher = mutexes[i]
-          # this assumes that list indexing operates in the same way as Python
+          # assume that i has a range of [0-5] inclusive, 0-1 = 5 (negative wraps around)
 ```
