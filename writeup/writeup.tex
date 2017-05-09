@@ -1,0 +1,193 @@
+\documentclass[letterpaper,10pt]{article}
+
+\usepackage{graphicx}                                        
+\usepackage{amssymb}                                         
+\usepackage{amsmath}                                         
+\usepackage{amsthm}                                          
+
+\usepackage{alltt}                                           
+\usepackage{float}
+\usepackage{color}
+\usepackage{url}
+\usepackage{hyperref}
+\usepackage{listings}
+
+\usepackage{balance}
+
+
+\usepackage{geometry}
+\geometry{textheight=8.5in, textwidth=6in}
+
+%random comment
+
+\newcommand{\cred}[1]{{\color{red}#1}}
+\newcommand{\cblue}[1]{{\color{blue}#1}}
+
+\newcommand{\toc}{\tableofcontents}
+
+\title{CS 444 Assignment 2}
+\author{Jared Wasinger, Soo-Min Yoo}
+
+
+\parindent = 0.0 in
+\parskip = 0.1 in
+
+\begin{document}
+
+\maketitle
+\newpage
+
+\section*{Design for Implementing SSTF Algorithms}
+	sstf\_dispatch\_requests():
+    \newline in request list find the first request with greater sector number than last spindle location
+    \newline if there\'s none:
+	\newline change spindle direction and move cursor to PREV struct of where cursor pointed in request list
+	\newline if there is one:
+	\newline move spindle location by changing corresponding value in sstf\_data structs
+    \newline
+    \newline sstf\_add\_request():
+	\newline //add new request to the correct location in list so that request list remains sorted
+	\newline struct list\_head *current = NULL;
+	\newline if list is empty, add request to the end of list
+	\newline iterate over request list:
+	\newline if (sector for current\'s next \textgreater= sector for request AND sector for current \textless= sector for request):
+	\newline add request
+    \newline exit loop iterating through list
+	\newline add request to end of list
+
+\section*{Version Control Log}
+\begin{tabular}{l l l}\textbf{Detail} & \textbf{Author} & \textbf{Description}\\\hline
+\href{https://github.com/jwasinger/dining_philosophers/commit/9b76014f69395c98157b04a237ab3d82ada934d3}{9b76014} & Soo-Min Yoo & Finish io scheduler code\\\hline
+\href{https://github.com/jwasinger/dining_philosophers/commit/d70ec82da30610d01a50eab30ead5f4fcf2a6fdf}{d70ec82} & j-wasinger@hotmail.com & file structure update\\\hline
+\href{https://github.com/jwasinger/dining_philosophers/commit/f42c175f974cb3ea4cda3f951d2f59c8b6f484c2}{f42c175} & j-wasinger@hotmail.com & final update\\\hline
+\href{https://github.com/jwasinger/dining_philosophers/commit/728e62c00ca02bac0bcf25b7d216fcfd254be1d7}{728e62c} & Jared Wasinger & initial completion\\\hline
+\href{https://github.com/jwasinger/dining_philosophers/commit/b75d57a18385302e88d5734280458ca1b4e0d409}{b75d57a} & j-wasinger@hotmail.com & add test thread code\\\hline
+\href{https://github.com/jwasinger/dining_philosophers/commit/a0a32673f2d281f33ee749a069e84d241855d56d}{a0a3267} & Jared Wasinger & Update README.md\\\hline
+\href{https://github.com/jwasinger/dining_philosophers/commit/0382a94abbc4caf3c97d9759a88fee730f39a5a0}{0382a94} & Jared Wasinger & first commit\\\hline
+\end{tabular}
+
+\section*{Assignment Questions}
+
+\begin{enumerate}
+  \item{What do you think the main point of this assignment is?}\\
+	The main point of this assignment is to learn about Linux I/O schedulers and how to implement scheduling algorithms that dispatches tasks. In this assignment, we implemented the shortest seek time first (SSTF) scheduler using the C-LOOK algorithm, which is an enhanced version of the C-SCAN algorithm. It only scans in one direction, but when it gets to the final request it reverses direction without going all the way to the end of the disk.
+  
+  \item{How did you personally approach the problem? Design decisions, algorithm, etc.}\\
+	First I made a copy of the noop-iosched.c file and renamed it to sstf-iosched.c, and replaced all instances of 'noop' with 'sstf'. Then I added some lines to the Makefile and Kconfig.iosched to get the new I/O scheduler to compile. 
+	Since I decided to go with the C-LOOK algorithm which is an elevator algorithm that scans in only one direction, I thought about using insertion sort via a loop that iterates over the length of the disk and adds requests in the correct location. Initially I had two request structs *current and *current->next, so that as I iterated through the disk using list\_for\_each(), I could use current->next to 'look ahead' and reverse direction once it reached the last request. Later as I researched more about the C-LOOK algorithm I found a way to use the rq\_end\_sector() macro to sort the requests by checking their physical address locations, and decided to go with this method as it was very simple and straightforward to implement.
+
+  
+  \item{How did you ensure your solution was correct? Testing details, for instance.}
+	I used KERN\_INFO debug printk() statements in the sstf\_add\_requests() and sstf\_dispatch\_requests() functions, so that when I run the I/O generating script on the VM the debug prints would tell me whether or not the scheduler was working correctly. Kernel bugs meant the scheduler was not working. The printk() statements outputted whether the request data direction was read or write, add or dispatch, and the sector number, so it would be clear what the scheduler was doing. I confirmed that it was done successfully when I saw that the requests were being added and dispatched in the right order.
+  
+  \item{What did you learn?}
+  	As I did this assignment, I learned a lot about how I/O scheduling algorithms work, how to test I/O schedulers on a VM, a bit about loglevels, how to use semaphores and threads on an implementation of the dining philosopher's problem, and that kernel bugs are scary territory.
+  
+\end{enumerate}
+
+
+\section*{Code Listing}
+\lstset{language=C,
+                basicstyle=\ttfamily,
+                keywordstyle=\color{blue}\ttfamily,
+                stringstyle=\color{red}\ttfamily,
+                commentstyle=\color{green}\ttfamily,
+                morecomment=[l][\color{magenta}]{\#}
+}
+
+\begin{lstlisting}
+// code here
+\end{lstlisting}
+
+
+\subsection*{Concurrency}
+\begin{lstlisting}
+package main
+
+import (
+  "fmt"
+  "time"
+  "sync"
+  "runtime"
+  "math/rand"
+)
+
+func Min(x, y int) int {
+  if x < y {
+    return x
+  }
+  return y
+}
+
+func Max(x, y int) int {
+  if x > y {
+      return x
+  }
+  return y
+}
+
+//sleep from 1-20 seconds
+func think(position int, names [5]string) {
+  sleep_time := rand.Intn(19)+1
+  fmt.Println(names[position], " is thinking")
+  time.Sleep(time.Second*time.Duration(sleep_time))
+}
+
+func get_forks(forks *[5]sync.Mutex, position, minFork int, maxFork int, names [5]string) {
+  forks[minFork].Lock()
+  forks[maxFork].Lock()
+  fmt.Println(names[position], " has forks: ", minFork, " ", maxFork)
+}
+
+func put_forks(forks *[5]sync.Mutex, minFork int, maxFork int, names [5]string) {
+  forks[minFork].Unlock()
+  forks[maxFork].Unlock()
+}
+
+func eat(position int, names [5]string) {
+  eat_time := rand.Intn(8)+1
+  fmt.Println(names[position], " is eating")
+  time.Sleep(time.Duration(eat_time)*time.Second)
+}
+
+func philosopher(forks *[5]sync.Mutex, position int, names [5]string) {
+  var right int = 0
+  var left int = position
+
+  if position+1 == 5 {
+    right = 0
+  } else {
+    right = position+1
+  }
+
+
+  max := Max(left, right)
+  min := Min(left, right)
+
+  for ;; {
+    think(position, names)
+    get_forks(forks, position, min, max, names)
+    eat(position, names)
+    put_forks(forks, min, max, names)
+    fmt.Println(names[position], " is done")
+  }
+}
+
+func main() {
+  runtime.GOMAXPROCS(2) // max number of CPUs used
+
+  names := [5]string{"Bob","Jim","Joe","Susan","Maya"}
+  forks := [5]sync.Mutex{}
+
+  wg := sync.WaitGroup{}
+
+  wg.Add(1)
+
+  for i := 0; i < 5; i++ {
+    go philosopher(&forks, i, names) // create a new goroutine (thread)
+  }
+
+  wg.Wait()
+}
+\end{lstlisting}
+\end{document}
