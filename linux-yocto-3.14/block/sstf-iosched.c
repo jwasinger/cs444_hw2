@@ -45,7 +45,7 @@ static int sstf_dispatch(struct request_queue *q, int force)
 		list_del_init(&rq->queuelist);
 		elv_dispatch_sort(q, rq);
 
-		// print to show that scheduler dispatches as intended
+		// debug prints to show that scheduler dispatches as intended
 		if (rq_data_dir(rq) == READ) {
 			printk("KERN_INFO [CLOOK] dsp R %llu\n", blk_rq_pos(rq));
 		} else {
@@ -69,17 +69,22 @@ static void sstf_add_request(struct request_queue *q, struct request *rq)
 	if (list_empty(&nd->queue)) {
 		list_add(&rq->queuelist, &nd->queue);
 	}
-
-	struct request *c_req = list_entry(cur, struct request, queuelist);
 	
+	// sorts by checking physical address
+	// source:
+	// rq_end_sector(rq) defined in linux/elevator.h as a macro
+	// - (blk_rq_pos(rq) + blk_rq_sectors(rq))
+	// http://funwithgraphics.blogspot.com/2012/10/implementing-clook-algorithm-part-1.html
 	list_for_each(cur, &nd->queue) {
+		struct request *c_req = list_entry(cur, struct request, queuelist);
+
 		if(rq_end_sector(c_req) > rq_end_sector(rq)) {
 			break;
 		}
 	}
 	list_add_tail(&rq->queuelist, cur);
 
-	// print to show that scheduler adds as intended
+	// debug prints to show that scheduler adds as intended
 	if (rq_data_dir(rq) == READ) {
 		printk("KERN_INFO [CLOOK] add R %llu\n", blk_rq_pos(rq));
 	} else {
